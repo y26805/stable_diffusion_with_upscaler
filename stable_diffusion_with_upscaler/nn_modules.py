@@ -1,7 +1,7 @@
-import torch
-from torch import nn
-import torch.nn.functional as F
 import k_diffusion as K
+import torch
+import torch.nn.functional as F
+from torch import nn
 
 
 class NoiseLevelAndTextConditionedUpscaler(nn.Module):

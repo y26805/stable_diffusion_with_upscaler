@@ -1,35 +1,32 @@
-import sys, os
+import os
+import sys
 
 sys.path.extend(["./taming-transformers", "./stable-diffusion", "./latent-diffusion"])
-import numpy as np
-import time
-
-import requests
 import io
-
+import time
+from functools import partial
 from subprocess import Popen
 
+import click
+import k_diffusion as K
+import ldm
+import numpy as np
+import requests
 import torch
-from torch import nn
 import torch.nn.functional as F
-
-from PIL import Image
 from einops import rearrange
 from omegaconf import OmegaConf
+from PIL import Image
 from pytorch_lightning import seed_everything
-from torchvision.utils import make_grid
+from torch import nn
 from torchvision.transforms import functional as TF
+from torchvision.utils import make_grid
 from tqdm.notebook import tqdm, trange
-from functools import partial
-
-import ldm
-import k_diffusion as K
-import click
 
 import stable_diffusion_with_upscaler.fetch_models as fetch_models
 from stable_diffusion_with_upscaler.nn_modules import (
-    CLIPTokenizerTransform,
     CLIPEmbedder,
+    CLIPTokenizerTransform,
 )
 
 
