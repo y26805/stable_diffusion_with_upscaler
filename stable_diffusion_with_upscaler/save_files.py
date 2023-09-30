@@ -1,6 +1,8 @@
 import os
 import re
 
+from PIL import Image
+
 
 def clean_prompt(prompt: str) -> str:
     badchars = re.compile(r"[/\\]")
@@ -10,7 +12,9 @@ def clean_prompt(prompt: str) -> str:
     return prompt
 
 
-def format_filename(save_location: str, timestamp, seed, index, prompt: str) -> str:
+def format_filename(
+    save_location: str, timestamp: int, seed: int, index, prompt: str
+) -> str:
     return (
         save_location.replace("%T", f"{timestamp}")
         .replace("%S", f"{seed}")
@@ -19,7 +23,15 @@ def format_filename(save_location: str, timestamp, seed, index, prompt: str) -> 
     )
 
 
-def save_image(image, **kwargs):
-    filename = format_filename(**kwargs)
+def save_image(
+    image: Image, save_location: str, *, timestamp: int, seed: int, index, prompt: str
+):
+    filename = format_filename(
+        save_location=save_location,
+        timestamp=timestamp,
+        seed=seed,
+        index=index,
+        prompt=prompt,
+    )
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     image.save(filename)

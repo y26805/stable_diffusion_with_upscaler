@@ -28,6 +28,7 @@ from stable_diffusion_with_upscaler.nn_modules import (
     CLIPEmbedder,
     CLIPTokenizerTransform,
 )
+from stable_diffusion_with_upscaler.save_files import save_image
 
 
 @click.command()
@@ -38,6 +39,7 @@ from stable_diffusion_with_upscaler.nn_modules import (
 @click.option("--guidance_scale", default=5)
 @click.option("--steps", default=20)
 @click.option("--eta", default=0.0)
+@torch.no_grad()
 def main(
     seed: int,
     prompt: str,
@@ -47,6 +49,13 @@ def main(
     steps: int,
     eta: float,
 ):
+    timestamp = int(time.time())
+    if not seed:
+        print("No seed was provided, using the current time.")
+        seed = timestamp
+    print(f"Generating with seed={seed}")
+    seed_everything(seed)
+
     sd_model, vae_model_840k, vae_model_560k, model_up = load_model_on_gpu()
     low_res_latent = gen_low_res_latent(
         sd_model,
@@ -56,6 +65,18 @@ def main(
         guidance_scale=guidance_scale,
         eta=eta,
     )
+    x_samples_ddim = sd_model.decode_first_stage(low_res_latent)
+    x_samples_ddim = torch.clamp((x_samples_ddim + 1.0) / 2.0, min=0.0, max=1.0)
+    save_location = "stable-diffusion-upscaler/%T-%I-%P.png"
+    for x_sample in x_samples_ddim:
+        x_sample = 255.0 * rearrange(x_sample.cpu().numpy(), "c h w -> h w c")
+        save_image(
+            image=Image.fromarray(x_sample.astype(np.uint8)),
+            save_location=save_location,
+            prompt=prompt,
+            seed=seed,
+            timestamp=timestamp,
+        )
 
 
 def download() -> tuple[str, str, str]:
