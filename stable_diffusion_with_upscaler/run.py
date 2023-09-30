@@ -152,7 +152,6 @@ def main(
     steps: int,
     eta: float,
     outdir: str,
-    decoder: str,
     noise_aug_level: int,
     noise_aug_type: str,
     sampler: str,
@@ -166,9 +165,7 @@ def main(
     seed_everything(seed)
 
     device = torch.device("cuda")
-    sd_model, vae_model_840k, vae_model_560k, model_up = load_model_on_gpu(
-        device=device
-    )
+    sd_model, model_up = load_model_on_gpu(device=device)
     low_res_latent = gen_low_res_latent(
         sd_model,
         batch_size=batch_size,
@@ -181,11 +178,6 @@ def main(
     [_, C, H, W] = low_res_latent.shape
     uc = condition_up(batch_size * [""], device=device)
     c = condition_up(batch_size * [prompt], device=device)
-
-    if decoder == "finetuned_840k":
-        vae = vae_model_840k
-    elif decoder == "finetuned_560k":
-        vae = vae_model_560k
 
     model_wrap = CFGUpscaler(model_up, uc, cond_scale=scale)
     low_res_sigma = torch.full([batch_size], noise_aug_level, device=device)
@@ -229,25 +221,11 @@ def main(
             image_id += 1
 
 
-def download() -> tuple[str, str, str]:
-    """
-    Download models and save to cache.
-    """
+def load_model_on_gpu(device: str) -> tuple:
+    """Save, load and mount models on GPU."""
     sd_model_path = fetch_models.download_from_huggingface(
         "CompVis/stable-diffusion-v-1-4-original", "sd-v1-4.ckpt"
     )
-    vae_840k_model_path = fetch_models.download_from_huggingface(
-        "stabilityai/sd-vae-ft-mse-original", "vae-ft-mse-840000-ema-pruned.ckpt"
-    )
-    vae_560k_model_path = fetch_models.download_from_huggingface(
-        "stabilityai/sd-vae-ft-ema-original", "vae-ft-ema-560000-ema-pruned.ckpt"
-    )
-    return sd_model_path, vae_840k_model_path, vae_560k_model_path
-
-
-def load_model_on_gpu(device: str) -> tuple:
-    """Load and mount models on GPU."""
-    sd_model_path, vae_840k_model_path, vae_560k_model_path = download()
     cpu = torch.device("cpu")
 
     sd_model = fetch_models.load_model_from_config(
@@ -255,20 +233,7 @@ def load_model_on_gpu(device: str) -> tuple:
         sd_model_path,
         cpu,
     )
-    vae_model_840k = fetch_models.load_model_from_config(
-        "latent-diffusion/models/first_stage_models/kl-f8/config.yaml",
-        vae_840k_model_path,
-        cpu,
-    )
-    vae_model_560k = fetch_models.load_model_from_config(
-        "latent-diffusion/models/first_stage_models/kl-f8/config.yaml",
-        vae_560k_model_path,
-        cpu,
-    )
-
     sd_model = sd_model.to(device)
-    vae_model_840k = vae_model_840k.to(device)
-    vae_model_560k = vae_model_560k.to(device)
 
     model_up = fetch_models.make_upscaler_model(
         fetch_models.fetch(
@@ -279,7 +244,7 @@ def load_model_on_gpu(device: str) -> tuple:
         ),
     )
     model_up = model_up.to(device)
-    return sd_model, vae_model_840k, vae_model_560k, model_up
+    return sd_model, model_up
 
 
 @torch.no_grad()
