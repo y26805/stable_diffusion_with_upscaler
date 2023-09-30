@@ -117,8 +117,10 @@ def do_sample(
 @click.option(
     "--noise_aug_type",
     default="gaussian",
-    type=click.Choice(["gaussian", "fake"]),
-    case_sensitive=False,
+    type=click.Choice(
+        ["gaussian", "fake"],
+        case_sensitive=False,
+    ),
 )
 @click.option(
     "--sampler",
@@ -130,9 +132,9 @@ def do_sample(
             "k_dpm_2_ancestral",
             "k_dpm_fast",
             "k_dpm_adaptive",
-        ]
+        ],
+        case_sensitive=False,
     ),
-    case_sensitive=False,
 )
 @click.option(
     "--tol_scale",
