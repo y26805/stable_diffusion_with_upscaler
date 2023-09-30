@@ -41,3 +41,4 @@ def save_image(
     )
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     image.save(filename)
+    print("Image saved", filename)

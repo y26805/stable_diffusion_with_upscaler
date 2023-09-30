@@ -70,7 +70,7 @@ def download_from_huggingface(repo: str, filename: str) -> str:
                 raise e
 
 
-def load_model_from_config(config, ckpt: str, cpu):
+def load_model_from_config(config, ckpt: str, cpu: str):
     print(f"Loading model from {ckpt}")
     pl_sd = torch.load(ckpt, map_location="cpu")
     sd = pl_sd["state_dict"]

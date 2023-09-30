@@ -6,6 +6,7 @@ import io
 import time
 from functools import partial
 from subprocess import Popen
+from typing import Any
 
 import click
 import k_diffusion as K
@@ -25,10 +26,76 @@ from tqdm.notebook import tqdm, trange
 
 import stable_diffusion_with_upscaler.fetch_models as fetch_models
 from stable_diffusion_with_upscaler.nn_modules import (
+    CFGUpscaler,
     CLIPEmbedder,
     CLIPTokenizerTransform,
 )
 from stable_diffusion_with_upscaler.save_files import save_image
+
+
+@torch.no_grad()
+def condition_up(prompts: list[str], device: str):
+    tok_up = CLIPTokenizerTransform()
+    text_encoder_up = CLIPEmbedder(device=device)
+    return text_encoder_up(tok_up(prompts))
+
+
+def do_sample(
+    sampler: str,
+    model_wrap: CFGUpscaler,
+    steps: int,
+    noise: torch.Tensor,
+    tol_scale: float,
+    device: str,
+    eta: float,
+    extra_args: dict[str, Any],
+):
+    # Noise levels from stable diffusion.
+    sigma_min, sigma_max = 0.029167532920837402, 14.614642143249512
+    # We take log-linear steps in noise-level from sigma_max to sigma_min, using one of the k diffusion samplers.
+    sigmas = (
+        torch.linspace(np.log(sigma_max), np.log(sigma_min), steps + 1).exp().to(device)
+    )
+    if sampler == "k_euler":
+        return K.sampling.sample_euler(
+            model_wrap, noise * sigma_max, sigmas, extra_args=extra_args
+        )
+    elif sampler == "k_euler_ancestral":
+        return K.sampling.sample_euler_ancestral(
+            model_wrap, noise * sigma_max, sigmas, extra_args=extra_args, eta=eta
+        )
+    elif sampler == "k_dpm_2_ancestral":
+        return K.sampling.sample_dpm_2_ancestral(
+            model_wrap, noise * sigma_max, sigmas, extra_args=extra_args, eta=eta
+        )
+    elif sampler == "k_dpm_fast":
+        return K.sampling.sample_dpm_fast(
+            model_wrap,
+            noise * sigma_max,
+            sigma_min,
+            sigma_max,
+            steps,
+            extra_args=extra_args,
+            eta=eta,
+        )
+    elif sampler == "k_dpm_adaptive":
+        sampler_opts = dict(
+            s_noise=1.0,
+            rtol=tol_scale * 0.05,
+            atol=tol_scale / 127.5,
+            pcoeff=0.2,
+            icoeff=0.4,
+            dcoeff=0.0,
+        )
+        return K.sampling.sample_dpm_adaptive(
+            model_wrap,
+            noise * sigma_max,
+            sigma_min,
+            sigma_max,
+            extra_args=extra_args,
+            eta=eta,
+            **sampler_opts,
+        )
 
 
 @click.command()
@@ -38,11 +105,52 @@ from stable_diffusion_with_upscaler.save_files import save_image
 @click.option("--batch_size", default=1, type=int)
 @click.option("--scale", default=5, type=int)
 @click.option("--steps", default=20, type=int)
-@click.option("--eta", default=0.0)
+@click.option(
+    "--eta",
+    default=0.0,
+    help="Amount of noise to add per step (0.0=deterministic). Used in all samplers except `k_euler`.",
+)
 @click.option(
     "--outdir",
     default="outputs",
     help="Location to save generated image",
+)
+@click.option(
+    "--decoder",
+    default="finetuned_840k",
+    type=click.Choice(["finetuned_840k", "finetuned_560k"], case_sensitive=False),
+)
+@click.option(
+    "--noise_aug_level",
+    default=0,
+    type=int,
+    help="Add noise to the latent vectors before upscaling. This theoretically can make the model work better on out-of-distribution inputs, but mostly just seems to make it match the input less, so it's turned off by default.",
+)
+@click.option(
+    "--noise_aug_type",
+    default="gaussian",
+    type=click.Choice(["gaussian", "fake"]),
+    case_sensitive=False,
+)
+@click.option(
+    "--sampler",
+    default="k_dpm_adaptive",
+    type=click.Choice(
+        [
+            "k_euler",
+            "k_euler_ancestral",
+            "k_dpm_2_ancestral",
+            "k_dpm_fast",
+            "k_dpm_adaptive",
+        ]
+    ),
+    case_sensitive=False,
+)
+@click.option(
+    "--tol_scale",
+    default=0.25,
+    type=float,
+    help="For the `k_dpm_adaptive` sampler, which uses an adaptive solver with error tolerance tol_scale",
 )
 @torch.no_grad()
 def main(
@@ -54,6 +162,11 @@ def main(
     steps: int,
     eta: float,
     outdir: str,
+    decoder: str,
+    noise_aug_level: int,
+    noise_aug_type: str,
+    sampler: str,
+    tol_scale: float,
 ):
     timestamp = int(time.time())
     if not seed:
@@ -71,18 +184,57 @@ def main(
         guidance_scale=scale,
         eta=eta,
     )
-    x_samples_ddim = sd_model.decode_first_stage(low_res_latent)
-    x_samples_ddim = torch.clamp((x_samples_ddim + 1.0) / 2.0, min=0.0, max=1.0)
+
+    [_, C, H, W] = low_res_latent.shape
+    device = torch.device("cuda")
+    uc = condition_up(batch_size * [""], device=device)
+    c = condition_up(batch_size * [prompt], device=device)
+
+    if decoder == "finetuned_840k":
+        vae = vae_model_840k
+    elif decoder == "finetuned_560k":
+        vae = vae_model_560k
+
+    model_wrap = CFGUpscaler(model_up, uc, cond_scale=scale)
+    low_res_sigma = torch.full([batch_size], noise_aug_level, device=device)
+    x_shape = [batch_size, C, 2 * H, 2 * W]
+
+    image_id = 0
     save_location = f"{outdir}/%T-%I-%P.png"
-    for x_sample in x_samples_ddim:
-        x_sample = 255.0 * rearrange(x_sample.cpu().numpy(), "c h w -> h w c")
-        save_image(
-            image=Image.fromarray(x_sample.astype(np.uint8)),
-            save_location=save_location,
-            prompt=prompt,
-            seed=seed,
-            timestamp=timestamp,
+    for _ in range((n_samples - 1) // batch_size + 1):
+        if noise_aug_type == "gaussian":
+            latent_noised = low_res_latent + noise_aug_level * torch.randn_like(
+                low_res_latent
+            )
+        elif noise_aug_type == "fake":
+            latent_noised = low_res_latent * (noise_aug_level**2 + 1) ** 0.5
+        extra_args = {"low_res": latent_noised, "low_res_sigma": low_res_sigma, "c": c}
+        noise = torch.randn(x_shape, device=device)
+        up_latents = do_sample(
+            sampler=sampler,
+            model_wrap=model_wrap,
+            steps=steps,
+            noise=noise,
+            tol_scale=tol_scale,
+            device=device,
+            eta=eta,
+            extra_args=extra_args,
         )
+
+        pixels = sd_model.decode_first_stage(up_latents)
+        pixels = pixels.add(1).div(2).clamp(0, 1)
+
+        for j in range(pixels.shape[0]):
+            img = TF.to_pil_image(pixels[j])
+            save_image(
+                img,
+                save_location=save_location,
+                timestamp=timestamp,
+                index=image_id,
+                prompt=prompt,
+                seed=seed,
+            )
+            image_id += 1
 
 
 def download() -> tuple[str, str, str]:
@@ -101,11 +253,10 @@ def download() -> tuple[str, str, str]:
     return sd_model_path, vae_840k_model_path, vae_560k_model_path
 
 
-def load_model_on_gpu() -> tuple:
+def load_model_on_gpu(device: str) -> tuple:
     """Load and mount models on GPU."""
     sd_model_path, vae_840k_model_path, vae_560k_model_path = download()
     cpu = torch.device("cpu")
-    device = torch.device("cuda")
 
     sd_model = fetch_models.load_model_from_config(
         "stable-diffusion/configs/stable-diffusion/v1-inference.yaml",
