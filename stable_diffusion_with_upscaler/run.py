@@ -165,7 +165,10 @@ def main(
     print(f"Generating with seed={seed}")
     seed_everything(seed)
 
-    sd_model, vae_model_840k, vae_model_560k, model_up = load_model_on_gpu()
+    device = torch.device("cuda")
+    sd_model, vae_model_840k, vae_model_560k, model_up = load_model_on_gpu(
+        device=device
+    )
     low_res_latent = gen_low_res_latent(
         sd_model,
         batch_size=batch_size,
@@ -176,7 +179,6 @@ def main(
     )
 
     [_, C, H, W] = low_res_latent.shape
-    device = torch.device("cuda")
     uc = condition_up(batch_size * [""], device=device)
     c = condition_up(batch_size * [prompt], device=device)
 
