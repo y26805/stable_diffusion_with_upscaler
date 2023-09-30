@@ -33,11 +33,11 @@ from stable_diffusion_with_upscaler.save_files import save_image
 
 @click.command()
 @click.option("--seed", default=0, help="Set seed to 0 to use the current time")
-@click.option("--prompt", help="Set text prompt")
-@click.option("--num_samples", default=1)
-@click.option("--batch_size", default=1)
-@click.option("--guidance_scale", default=5)
-@click.option("--steps", default=20)
+@click.option("--prompt", required=True, help="Set text prompt")
+@click.option("--num_samples", default=1, type=int)
+@click.option("--batch_size", default=1, type=int)
+@click.option("--guidance_scale", default=5, type=int)
+@click.option("--steps", default=20, type=int)
 @click.option("--eta", default=0.0)
 @torch.no_grad()
 def main(

@@ -13,7 +13,7 @@ def clean_prompt(prompt: str) -> str:
 
 
 def format_filename(
-    save_location: str, timestamp: int, seed: int, index, prompt: str
+    save_location: str, timestamp: int, seed: int, index: int, prompt: str
 ) -> str:
     return (
         save_location.replace("%T", f"{timestamp}")
@@ -24,7 +24,13 @@ def format_filename(
 
 
 def save_image(
-    image: Image, save_location: str, *, timestamp: int, seed: int, index, prompt: str
+    image: Image,
+    save_location: str,
+    *,
+    timestamp: int,
+    seed: int,
+    prompt: str,
+    index: int = 0,
 ):
     filename = format_filename(
         save_location=save_location,
