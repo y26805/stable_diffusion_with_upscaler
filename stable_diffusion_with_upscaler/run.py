@@ -34,20 +34,26 @@ from stable_diffusion_with_upscaler.save_files import save_image
 @click.command()
 @click.option("--seed", default=0, help="Set seed to 0 to use the current time")
 @click.option("--prompt", required=True, help="Set text prompt")
-@click.option("--num_samples", default=1, type=int)
+@click.option("--n_samples", default=1, type=int)
 @click.option("--batch_size", default=1, type=int)
-@click.option("--guidance_scale", default=5, type=int)
+@click.option("--scale", default=5, type=int)
 @click.option("--steps", default=20, type=int)
 @click.option("--eta", default=0.0)
+@click.option(
+    "--outdir",
+    default="outputs",
+    help="Location to save generated image",
+)
 @torch.no_grad()
 def main(
     seed: int,
     prompt: str,
-    num_samples: int,
+    n_samples: int,
     batch_size: int,
-    guidance_scale: float,
+    scale: float,
     steps: int,
     eta: float,
+    outdir: str,
 ):
     timestamp = int(time.time())
     if not seed:
@@ -62,12 +68,12 @@ def main(
         batch_size=batch_size,
         prompt=prompt,
         steps=steps,
-        guidance_scale=guidance_scale,
+        guidance_scale=scale,
         eta=eta,
     )
     x_samples_ddim = sd_model.decode_first_stage(low_res_latent)
     x_samples_ddim = torch.clamp((x_samples_ddim + 1.0) / 2.0, min=0.0, max=1.0)
-    save_location = "stable-diffusion-upscaler/%T-%I-%P.png"
+    save_location = f"{outdir}/%T-%I-%P.png"
     for x_sample in x_samples_ddim:
         x_sample = 255.0 * rearrange(x_sample.cpu().numpy(), "c h w -> h w c")
         save_image(
