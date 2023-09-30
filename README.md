@@ -1,6 +1,6 @@
 
 # Stable diffusion with upscaler
-
+![Panda in space](./panda-in-space.png)
 ## How to install
 ### 1. Clone this repo
 ```
@@ -34,7 +34,9 @@ git clone https://github.com/CompVis/latent-diffusion
 poetry shell
 ```
 
-Run
+Running the follow will save a file in the `outputs/` folder.
 ```
 python3 stable_diffusion_with_upscaler/run.py --prompt "panda in space"
 ```
+
+Output images have a resolution of 1024x1024 pixels.
