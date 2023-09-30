@@ -104,11 +104,6 @@ def do_sample(
     help="Location to save generated image",
 )
 @click.option(
-    "--decoder",
-    default="finetuned_840k",
-    type=click.Choice(["finetuned_840k", "finetuned_560k"], case_sensitive=False),
-)
-@click.option(
     "--noise_aug_level",
     default=0,
     type=int,
