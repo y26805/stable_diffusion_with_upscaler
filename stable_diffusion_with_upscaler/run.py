@@ -152,6 +152,36 @@ def main(
     sampler: str,
     tol_scale: float,
 ):
+    run_model(
+        seed,
+        prompt,
+        n_samples,
+        batch_size,
+        scale,
+        steps,
+        eta,
+        outdir,
+        noise_aug_level,
+        noise_aug_type,
+        sampler,
+        tol_scale,
+    )
+
+
+def run_model(
+    seed: int,
+    prompt: str,
+    n_samples: int,
+    batch_size: int,
+    scale: float,
+    steps: int,
+    eta: float,
+    outdir: str,
+    noise_aug_level: int,
+    noise_aug_type: str,
+    sampler: str,
+    tol_scale: float,
+):
     timestamp = int(time.time())
     if not seed:
         print("No seed was provided, using the current time.")
