@@ -6,6 +6,7 @@
 
 ## Environment
 Supported on Python 3.8 to 3.11.
+Expected to run on a GPU.
 
 ## How to install
 ### 1. Clone this repo

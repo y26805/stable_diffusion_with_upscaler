@@ -152,6 +152,10 @@ def main(
     sampler: str,
     tol_scale: float,
 ):
+    if torch.cuda.is_available():
+        click.echo("GPU is available")
+    else:
+        click.echo("GPU is not available")
     run_model(
         seed,
         prompt,
