@@ -1,6 +1,12 @@
 
 # Stable diffusion with upscaler
+![example workflow](https://github.com/y26805/stable_diffusion_with_upscaler/actions/workflows/github-actions.yml/badge.svg)
 ![Panda in space](./panda-in-space.png)
+
+
+## Environment
+Supported on Python 3.8 to 3.11.
+
 ## How to install
 ### 1. Clone this repo
 ```
