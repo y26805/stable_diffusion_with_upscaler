@@ -6,6 +6,7 @@ import k_diffusion as K
 import torch
 from ldm.util import instantiate_from_config
 from omegaconf import OmegaConf
+from pytorch_lightning import LightningModule
 from requests.exceptions import HTTPError
 
 from stable_diffusion_with_upscaler.custom_models import (
@@ -34,7 +35,7 @@ def make_upscaler_model(
     pooler_dim: int = 768,
     train: bool = False,
     device: str = "cpu",
-):
+) -> K.layers.Denoiser | K.layers.DenoiserWithVariance | K.layers.SimpleLossDenoiser:
     config = K.config.load_config(open(config_path))
     model = K.config.make_model(config)
     model = NoiseLevelAndTextConditionedUpscaler(
@@ -70,12 +71,14 @@ def download_from_huggingface(repo: str, filename: str) -> str:
                 raise e
 
 
-def load_model_from_config(config, ckpt: str, cpu: str):
-    print(f"Loading model from {ckpt}")
-    pl_sd = torch.load(ckpt, map_location="cpu")
-    sd = pl_sd["state_dict"]
-    config = OmegaConf.load(config)
+def load_model_from_config(
+    config_path: str, model_path: str, cpu: str
+) -> LightningModule:
+    print(f"Loading model from {model_path}")
+    pl_sd = torch.load(model_path, map_location="cpu")
+    state_dict = pl_sd["state_dict"]
+    config = OmegaConf.load(config_path)
     model = instantiate_from_config(config.model)
-    m, u = model.load_state_dict(sd, strict=False)
+    model.load_state_dict(state_dict, strict=False)
     model = model.to(cpu).eval().requires_grad_(False)
     return model

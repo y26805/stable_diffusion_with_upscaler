@@ -9,7 +9,7 @@ import k_diffusion as K
 import ldm
 import numpy as np
 import torch
-from pytorch_lightning import seed_everything
+from pytorch_lightning import LightningModule, seed_everything
 from torchvision.transforms import functional as TF
 
 import stable_diffusion_with_upscaler.fetch_models as fetch_models
@@ -193,8 +193,8 @@ def run_model(
     click.echo(f"Generating with seed={seed}")
     seed_everything(seed)
 
-    device = torch.device("cuda")
-    sd_model, model_up = load_model_on_gpu(device=device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    sd_model, upscaler_model = load_models(device=device)
     low_res_latent = gen_low_res_latent(
         sd_model,
         batch_size=batch_size,
@@ -208,7 +208,7 @@ def run_model(
     uc = condition_up(batch_size * [""], device=device)
     c = condition_up(batch_size * [prompt], device=device)
 
-    model_wrap = CFGUpscaler(model_up, uc, cond_scale=scale)
+    model_wrap = CFGUpscaler(upscaler_model, uc, cond_scale=scale)
     low_res_sigma = torch.full([batch_size], noise_aug_level, device=device)
     x_shape = [batch_size, C, 2 * H, 2 * W]
 
@@ -250,21 +250,23 @@ def run_model(
             image_id += 1
 
 
-def load_model_on_gpu(device: str) -> tuple:
-    """Save, load and mount models on GPU."""
+def load_models(
+    device: str,
+) -> tuple[
+    LightningModule,
+    K.layers.Denoiser | K.layers.DenoiserWithVariance | K.layers.SimpleLossDenoiser,
+]:
+    """Save, load, and mount models on GPU."""
     sd_model_path = fetch_models.download_from_huggingface(
         "CompVis/stable-diffusion-v-1-4-original", "sd-v1-4.ckpt"
     )
-    cpu = torch.device("cpu")
-
     sd_model = fetch_models.load_model_from_config(
         "stable-diffusion/configs/stable-diffusion/v1-inference.yaml",
         sd_model_path,
-        cpu,
+        torch.device("cpu"),
     )
-    sd_model = sd_model.to(device)
 
-    model_up = fetch_models.make_upscaler_model(
+    upscaler_model = fetch_models.make_upscaler_model(
         fetch_models.fetch(
             "https://models.rivershavewings.workers.dev/config_laion_text_cond_latent_upscaler_2.json"
         ),
@@ -272,31 +274,30 @@ def load_model_on_gpu(device: str) -> tuple:
             "https://models.rivershavewings.workers.dev/laion_text_cond_latent_upscaler_2_1_00470000_slim.pth"
         ),
     )
-    model_up = model_up.to(device)
-    return sd_model, model_up
+    return sd_model.to(device), upscaler_model.to(device)
 
 
 @torch.no_grad()
 def gen_low_res_latent(
     sd_model,
     *,
-    batch_size,
-    prompt,
-    steps,
-    guidance_scale,
-    eta,
-    SD_C=4,
-    H=512,
-    W=512,
-    SD_F=8,
+    batch_size: int,
+    prompt: str,
+    steps: int,
+    guidance_scale: int,
+    eta: float,
+    SD_C: int = 4,
+    H: int = 512,
+    W: int = 512,
+    SD_F: int = 8,
 ):
     with sd_model.ema_scope():
         uc = sd_model.get_learned_conditioning(batch_size * [""])
         c = sd_model.get_learned_conditioning(batch_size * [prompt])
         shape = [SD_C, H // SD_F, W // SD_F]
-        test_sampler = ldm.models.diffusion.ddim.DDIMSampler(sd_model)
+        sampler = ldm.models.diffusion.ddim.DDIMSampler(sd_model)
 
-        samples_ddim, _ = test_sampler.sample(
+        samples_ddim, _ = sampler.sample(
             S=steps,
             conditioning=c,
             batch_size=batch_size,
