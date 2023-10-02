@@ -36,6 +36,7 @@ git clone https://github.com/CompVis/latent-diffusion
 
 ## How to run
 
+### Basic example
 (Optional) for poetry users, run
 ```
 poetry shell
@@ -47,3 +48,9 @@ python3 stable_diffusion_with_upscaler/run.py --prompt "panda in space"
 ```
 
 Output images have a resolution of 1024x1024 pixels.
+
+### More detailed example
+```
+python3 stable_diffusion_with_upscaler/run.py --prompt "panda in space" --steps 50 --seed 123 --outdir myfolder
+```
+This generates an image with the text promot `panda in space`, with 50 training steps and seed set as 123. The image is saved to `myfolder/`.
