@@ -13,7 +13,7 @@ from pytorch_lightning import seed_everything
 from torchvision.transforms import functional as TF
 
 import stable_diffusion_with_upscaler.fetch_models as fetch_models
-from stable_diffusion_with_upscaler.nn_modules import (
+from stable_diffusion_with_upscaler.custom_models import (
     CFGUpscaler,
     CLIPEmbedder,
     CLIPTokenizerTransform,

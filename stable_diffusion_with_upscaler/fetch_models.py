@@ -8,7 +8,7 @@ from ldm.util import instantiate_from_config
 from omegaconf import OmegaConf
 from requests.exceptions import HTTPError
 
-from stable_diffusion_with_upscaler.nn_modules import (
+from stable_diffusion_with_upscaler.custom_models import (
     NoiseLevelAndTextConditionedUpscaler,
 )
 
