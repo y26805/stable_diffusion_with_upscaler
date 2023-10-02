@@ -184,9 +184,9 @@ def run_model(
 ):
     timestamp = int(time.time())
     if not seed:
-        print("No seed was provided, using the current time.")
+        click.echo("No seed was provided, using the current time.")
         seed = timestamp
-    print(f"Generating with seed={seed}")
+    click.echo(f"Generating with seed={seed}")
     seed_everything(seed)
 
     device = torch.device("cuda")
