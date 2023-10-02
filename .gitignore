@@ -5,3 +5,4 @@ taming-transformers/
 stable-diffusion/
 latent-diffusion/
 __pycache__/
+.vscode/
